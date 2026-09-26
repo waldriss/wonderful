@@ -1,0 +1,11 @@
+# Ignore everything at the repository root by default.
+*
+
+# Keep this ignore file tracked.
+!.gitignore
+
+# Keep only the backend and frontend applications.
+!back-end/
+!back-end/**
+!front-end/
+!front-end/**

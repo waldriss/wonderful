@@ -1,21 +1,27 @@
 import { Request, Response, NextFunction, Express } from 'express';
 import logger from '../utils/logger';
 import { AppError, isAppError } from '../utils/errors';
+import { config } from '../config';
 
-// 404 handler
+/**
+ * 404 Not Found handler
+ */
 const notFoundHandler = (req: Request, res: Response, next: NextFunction) => {
   const error = new AppError(`Not Found - ${req.originalUrl}`, 404);
   next(error);
 };
 
-// Global error handler
+/**
+ * Global error handler
+ */
 const errorHandler = (
   err: Error | AppError,
   req: Request,
   res: Response,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   next: NextFunction
 ) => {
-  // Set default error values
+  // Determine status code
   const statusCode = isAppError(err) ? err.statusCode : 500;
   const message = err.message || 'Internal Server Error';
   
@@ -34,7 +40,10 @@ const errorHandler = (
     });
   } else {
     logger.warn({
-      err,
+      err: {
+        message: err.message,
+        statusCode,
+      },
       req: {
         method: req.method,
         url: req.url,
@@ -43,22 +52,32 @@ const errorHandler = (
     });
   }
 
-  // Customize error response based on environment
-  const isDevelopment = process.env.NODE_ENV === 'development';
-  
-  res.status(statusCode).json({
+  // Send error response
+  const response: Record<string, unknown> = {
+    success: false,
     status: 'error',
     statusCode,
     message,
-    ...(isDevelopment && { stack: err.stack }),
-    ...(isAppError(err) && err.data && { data: err.data }),
-  });
+  };
+
+  if (config.isDevelopment) {
+    response.stack = err.stack;
+  }
+
+  if (isAppError(err) && err.data) {
+    response.data = err.data;
+  }
+
+  res.status(statusCode).json(response);
 };
 
+/**
+ * Setup error handlers - must be called after all routes
+ */
 export function setupErrorHandlers(app: Express): void {
-  // Route not found handler - must be after all routes
+  // Route not found handler
   app.use(notFoundHandler);
   
-  // Global error handler - must be last middleware
+  // Global error handler - must be last
   app.use(errorHandler);
 }

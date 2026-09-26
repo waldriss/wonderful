@@ -1,52 +1,50 @@
+/**
+ * Custom application error class with status code support
+ */
 export class AppError extends Error {
-  statusCode: number;
-  data?: Record<string, any>;
-  isOperational: boolean;
+  public readonly statusCode: number;
+  public readonly data?: unknown;
+  public readonly isOperational: boolean;
 
-  constructor(
-    message: string, 
-    statusCode: number = 500,
-    data?: Record<string, any>
-  ) {
+  constructor(message: string, statusCode: number = 500, data?: unknown) {
     super(message);
     this.statusCode = statusCode;
     this.data = data;
-    this.isOperational = true; // Used to identify operational vs programming errors
-    
+    this.name = 'AppError';
+    this.isOperational = true;
+
     Error.captureStackTrace(this, this.constructor);
   }
 }
 
-export class BadRequestError extends AppError {
-  constructor(message: string = 'Bad request', data?: Record<string, any>) {
-    super(message, 400, data);
-  }
-}
-
-export class UnauthorizedError extends AppError {
-  constructor(message: string = 'Unauthorized', data?: Record<string, any>) {
-    super(message, 401, data);
-  }
-}
-
-export class ForbiddenError extends AppError {
-  constructor(message: string = 'Forbidden', data?: Record<string, any>) {
-    super(message, 403, data);
-  }
-}
-
-export class NotFoundError extends AppError {
-  constructor(message: string = 'Resource not found', data?: Record<string, any>) {
-    super(message, 404, data);
-  }
-}
-
-export class ValidationError extends AppError {
-  constructor(message: string = 'Validation failed', data?: Record<string, any>) {
-    super(message, 422, data);
-  }
-}
-
-export function isAppError(error: any): error is AppError {
+/**
+ * Type guard to check if an error is an AppError
+ */
+export const isAppError = (error: unknown): error is AppError => {
   return error instanceof AppError;
-}
+};
+
+// ============================================
+// Common error factory functions
+// ============================================
+
+export const createBadRequestError = (message: string, data?: unknown) => 
+  new AppError(message, 400, data);
+
+export const createValidationError = (message: string, data?: unknown) => 
+  new AppError(message, 400, data);
+
+export const createUnauthorizedError = (message: string = 'Unauthorized') => 
+  new AppError(message, 401);
+
+export const createForbiddenError = (message: string = 'Forbidden') => 
+  new AppError(message, 403);
+
+export const createNotFoundError = (resource: string) => 
+  new AppError(`${resource} not found`, 404);
+
+export const createConflictError = (message: string) => 
+  new AppError(message, 409);
+
+export const createInternalError = (message: string = 'Internal server error') => 
+  new AppError(message, 500);

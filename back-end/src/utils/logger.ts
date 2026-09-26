@@ -1,16 +1,21 @@
 import pino from 'pino';
 import { config } from '../config';
 
-// Create logger instance
+/**
+ * Pino logger instance configured based on environment
+ * - Development: Pretty printed with colors
+ * - Production: JSON format for log aggregation
+ */
 const logger = pino({
   level: config.logLevel,
   transport: 
-    config.nodeEnv !== 'production' 
+    config.isDevelopment
       ? {
           target: 'pino-pretty',
           options: {
             colorize: true,
             translateTime: 'SYS:standard',
+            ignore: 'pid,hostname',
           },
         } 
       : undefined,

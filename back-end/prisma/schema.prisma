@@ -1,4 +1,3 @@
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,42 +7,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id            String    @id
-  name          String
-  email         String
-  emailVerified Boolean
-  image         String?
-  createdAt     DateTime
-  updatedAt     DateTime
-  sessions      Session[]
-  accounts      Account[]
-
-  @@unique([email])
-  @@map("user")
-}
-
-model Session {
-  id        String   @id
-  expiresAt DateTime
-  token     String
-  createdAt DateTime
-  updatedAt DateTime
-  ipAddress String?
-  userAgent String?
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([token])
-  @@map("session")
-}
-
 model Account {
-  id                    String    @id
+  id                    String    @id @default(uuid())
   accountId             String
   providerId            String
   userId                String
-  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   accessToken           String?
   refreshToken          String?
   idToken               String?
@@ -51,19 +19,899 @@ model Account {
   refreshTokenExpiresAt DateTime?
   scope                 String?
   password              String?
-  createdAt             DateTime
-  updatedAt             DateTime
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime @updatedAt
+  user User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("account")
 }
 
+model Address {
+  id         String @id @default(uuid())
+  street     String
+  city       String
+  postalCode String
+  country    String @default("Algérie")
+  userId     String @unique
+  user User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([city])
+  @@map("address")
+}
+
+model AppSettings {
+  id    String @id @default(uuid())
+  key   String @unique
+  value Json
+
+  @@index([key])
+  @@map("app_settings")
+}
+
+model Badge {
+  id                String       @id @default(uuid())
+  name              String
+  description       String
+  icon              String
+  category          String?
+  rarity            BadgeRarity  @default(COMMON)
+  requirementType   String?
+  requirementTarget Int?
+  rewardValue       Int?
+  earnedCount       Int          @default(0)
+  status            BadgeStatus  @default(ACTIVE)
+  rewardType        RewardType?
+  users UserBadge[]
+
+  @@index([category])
+  @@index([rarity])
+  @@map("badge")
+}
+
+model CartItem {
+  id          String                 @id @default(uuid())
+  quantity    Int                    @default(1)
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime @updatedAt
+  userId      String
+  productId   String
+  product Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  supplements CartItemSupplement[]
+
+  @@index([userId])
+  @@map("cart_item")
+}
+
+model ContactMessage {
+  id        String               @id @default(uuid())
+  name      String
+  email     String
+  phone     String?
+  subject   String
+  message   String
+  status    ContactMessageStatus @default(NEW)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([createdAt])
+  @@index([status])
+  @@map("contact_message")
+}
+
+model DeliveryZone {
+  id             String   @id @default(uuid())
+  name           String
+  postalCodes    String[]
+  fee            Int
+  minOrderAmount Int?
+  isActive       Boolean  @default(true)
+  orders Order[]
+
+  @@index([isActive])
+  @@map("delivery_zone")
+}
+
+model Favorite {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  userId    String
+  productId String
+  product Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@map("favorite")
+}
+
+model LeaderboardConfig {
+  id          String     @id @default(uuid())
+  rank        Int        @unique
+  rewardType  RewardType
+  rewardValue Int
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime @updatedAt
+  @@map("leaderboard_config")
+}
+
+model Mission {
+  id               String         @id @default(uuid())
+  title            String
+  description      String
+  type             MissionType
+  icon             String?
+  targetValue      Int
+  rewardValue      Int
+  startDate        DateTime?
+  endDate          DateTime?
+  status           MissionStatus  @default(ACTIVE)
+  completionsCount Int            @default(0)
+  rewardType       RewardType
+  users UserMission[]
+
+  @@index([status])
+  @@index([type])
+  @@map("mission")
+}
+
+model MonthlyLeaderboardDistribution {
+  id            String   @id @default(uuid())
+  year          Int
+  month         Int
+  distributedAt DateTime @default(now())
+  distributedBy String
+
+  @@unique([year, month])
+  @@index([year, month])
+  @@map("monthly_leaderboard_distribution")
+}
+
+model MysteryBox {
+  id                 String               @id @default(uuid())
+  name               String
+  description        String?
+  icon               String?
+  cost               Int
+  rarity             BadgeRarity          @default(COMMON)
+  status             MysteryBoxStatus     @default(ACTIVE)
+  openedCount        Int                  @default(0)
+  possibleRewards MysteryBoxReward[]
+  userMysteryBoxes UserMysteryBox[]
+
+  @@index([rarity])
+  @@index([status])
+  @@map("mystery_box")
+}
+
+model MysteryBoxReward {
+  id           String      @id @default(uuid())
+  value        Int
+  probability  Int
+  description  String?
+  mysteryBoxId String
+  type         RewardType
+  mysteryBox MysteryBox @relation(fields: [mysteryBoxId], references: [id], onDelete: Cascade)
+
+  @@index([mysteryBoxId])
+  @@map("mystery_box_reward")
+}
+
+model Order {
+  id                      String                  @id @default(uuid())
+  orderNumber             String                  @unique
+  status                  OrderStatus             @default(PENDING)
+  total                   Int
+  subtotal                Int?
+  deliveryFee             Int?
+  discount                Int?
+  promoCodeId             String?
+  deliveryAddress         String
+  deliveryCity            String
+  deliveryPostalCode      String
+  deliveryDate            DateTime?
+  deliveryTimeSlot        String?
+  deliveryNotes           String?
+  paymentMethod           PaymentMethod
+  paymentStatus           PaymentStatus           @default(PENDING)
+  paidAt                  DateTime?
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime @updatedAt
+  userId                  String
+  deliveryZoneId          String?
+  phoneConfirmationNote   String?
+  phoneConfirmationStatus PhoneConfirmationStatus @default(PENDING)
+  phoneConfirmedAt        DateTime?
+  phoneConfirmedNumber    String?
+  gamificationDiscount    Int?                    @default(0)
+  userRewardId            String?
+  deliveryZone DeliveryZone?          @relation(fields: [deliveryZoneId], references: [id])
+  promoCode PromoCode?             @relation(fields: [promoCodeId], references: [id])
+  user User                    @relation(fields: [userId], references: [id])
+  userReward UserReward?            @relation(fields: [userRewardId], references: [id])
+  items OrderItem[]
+  statusHistory OrderStatusHistory[]
+
+  @@index([createdAt])
+  @@index([orderNumber])
+  @@index([phoneConfirmationStatus])
+  @@index([status])
+  @@index([userId])
+  @@map("order")
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  quantity  Int
+  price     Int
+  orderId   String
+  productId String
+  order Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+  supplements OrderItemSupplement[]
+
+  @@index([orderId])
+  @@map("order_item")
+}
+
+model OrderItemSupplement {
+  id           String   @id @default(uuid())
+  name         String
+  price        Int
+  quantity     Int
+  orderItemId  String
+  supplementId String
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  supplement Supplement @relation(fields: [supplementId], references: [id])
+
+  @@index([orderItemId])
+  @@map("order_item_supplement")
+}
+
+model OrderStatusHistory {
+  id        String      @id @default(uuid())
+  status    OrderStatus
+  note      String?
+  changedBy String?
+  timestamp DateTime    @default(now())
+  orderId   String
+  order Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("order_status_history")
+}
+
+model PointsAccount {
+  id                 String               @id @default(uuid())
+  totalPoints        Int                  @default(0)
+  availablePoints    Int                  @default(0)
+  lifetimeEarned     Int                  @default(0)
+  lifetimeSpent      Int                  @default(0)
+  userId             String               @unique
+  user User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions PointsTransaction[]
+  @@map("points_account")
+}
+
+model PointsTransaction {
+  id             String                @id @default(uuid())
+  type           PointsTransactionType
+  amount         Int
+  reason         String
+  relatedOrderId String?
+  createdAt      DateTime              @default(now())
+  accountId      String
+  points_account PointsAccount        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@index([createdAt])
+  @@map("points_transaction")
+}
+
+model Product {
+  id                   String                 @id @default(uuid())
+  name                 String
+  description          String
+  category             ProductCategory
+  price                Int
+  image                String
+  stock                Int                    @default(0)
+  stockAlert           Int                    @default(10)
+  status               ProductStatus          @default(ACTIVE)
+  rating               Float                  @default(0)
+  totalSold            Int                    @default(0)
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime @updatedAt
+  isNew                Boolean                @default(false)
+  isOnSale             Boolean                @default(false)
+  isBestSeller         Boolean                @default(false)
+  discount             Int?
+  portionSize          String?
+  prepTime             String?
+  images               String[]               @default([])
+  cartItems CartItem[]
+  favorites Favorite[]
+  items OrderItem[]
+  allergens ProductAllergen[]
+  dietTypes ProductDietType[]
+  dietaryGoals ProductDietaryGoal[]
+  mealTypes ProductMealType[]
+  nutrition ProductNutrition?
+  tags ProductTag[]
+  reviews Review[]
+  products SubscriptionProduct[]
+  supplements ProductSupplement[]
+
+  @@index([category])
+  @@index([isBestSeller])
+  @@index([isOnSale])
+  @@index([status])
+  @@map("product")
+}
+
+model ProductAllergen {
+  id        String  @id @default(uuid())
+  name      String
+  productId String
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([name])
+  @@map("product_allergen")
+}
+
+model ProductDietType {
+  id        String  @id @default(uuid())
+  name      String
+  productId String
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([name])
+  @@map("product_diet_type")
+}
+
+model ProductDietaryGoal {
+  id        String  @id @default(uuid())
+  name      String
+  productId String
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([name])
+  @@map("product_dietary_goal")
+}
+
+model ProductMealType {
+  id        String  @id @default(uuid())
+  name      String
+  productId String
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([name])
+  @@map("product_meal_type")
+}
+
+model ProductNutrition {
+  id        String  @id @default(uuid())
+  calories  Int
+  proteins  Int
+  carbs     Int
+  fats      Int
+  fiber     Int
+  productId String  @unique
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  @@map("product_nutrition")
+}
+
+model ProductTag {
+  id        String  @id @default(uuid())
+  name      String
+  color     String?
+  bgColor   String?
+  productId String
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([name])
+  @@map("product_tag")
+}
+
+model Supplement {
+  id          String               @id @default(uuid())
+  name        String
+  description String?
+  price       Int
+  isActive    Boolean              @default(true)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime @updatedAt
+  products ProductSupplement[]
+  cartItems CartItemSupplement[]
+  orderItems OrderItemSupplement[]
+
+  @@index([isActive])
+  @@map("supplement")
+}
+
+model ProductSupplement {
+  id           String     @id @default(uuid())
+  productId    String
+  supplementId String
+  product Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  supplement Supplement @relation(fields: [supplementId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, supplementId])
+  @@index([supplementId])
+  @@map("product_supplement")
+}
+
+model CartItemSupplement {
+  id           String   @id @default(uuid())
+  quantity     Int      @default(1)
+  cartItemId   String
+  supplementId String
+  cartItem CartItem   @relation(fields: [cartItemId], references: [id], onDelete: Cascade)
+  supplement Supplement @relation(fields: [supplementId], references: [id])
+
+  @@unique([cartItemId, supplementId])
+  @@index([supplementId])
+  @@map("cart_item_supplement")
+}
+
+model PromoCode {
+  id             String            @id @default(uuid())
+  code           String            @unique
+  type           PromoCodeType
+  value          Int
+  description    String?
+  minOrderAmount Int?
+  maxUses        Int?
+  usedCount      Int               @default(0)
+  validFrom      DateTime          @default(now())
+  validUntil     DateTime?
+  status         PromoCodeStatus   @default(ACTIVE)
+  applicableTo   PromoApplicableTo @default(ALL)
+  orders Order[]
+
+  @@index([code])
+  @@index([status])
+  @@map("promo_code")
+}
+
+model Referral {
+  id                               String @id @default(uuid())
+  code                             String @unique
+  totalReferrals                   Int    @default(0)
+  successfulReferrals              Int    @default(0)
+  totalEarned                      Int    @default(0)
+  referrerId                       String @unique
+  referrer User @relation("referral_referrerIdTouser", fields: [referrerId], references: [id], onDelete: Cascade)
+  referredUsers User[] @relation("user_referredByIdToreferral")
+
+  @@index([code])
+  @@map("referral")
+}
+
+model Review {
+  id         String       @id @default(uuid())
+  rating     Int
+  title      String?
+  comment    String
+  status     ReviewStatus @default(PENDING)
+  helpful    Int          @default(0)
+  response   String?
+  responseAt DateTime?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime @updatedAt
+  userId     String
+  productId  String
+  orderId    String?
+  product Product      @relation(fields: [productId], references: [id])
+  user User         @relation(fields: [userId], references: [id])
+
+  @@index([productId])
+  @@index([rating])
+  @@index([status])
+  @@index([userId])
+  @@map("review")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("session")
+}
+
+model Streak {
+  id            String    @id @default(uuid())
+  currentStreak Int       @default(0)
+  longestStreak Int       @default(0)
+  lastOrderDate DateTime?
+  active        Boolean   @default(true)
+  userId        String    @unique
+  user User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@map("streak")
+}
+
+model Subscription {
+  id                   String                 @id @default(uuid())
+  status               SubscriptionStatus     @default(ACTIVE)
+  startDate            DateTime               @default(now())
+  nextBillingDate      DateTime?
+  nextDeliveryDate     DateTime?
+  deliveryDays         String[]
+  deliveryAddress      String
+  deliveryTimeSlot     String?
+  paymentMethod        PaymentMethod
+  totalPaid            Int                    @default(0)
+  deliveriesCount      Int                    @default(0)
+  pausedAt             DateTime?
+  pauseReason          String?
+  cancelledAt          DateTime?
+  cancelReason         String?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime @updatedAt
+  userId               String                 @unique
+  planId               String
+  plan SubscriptionPlan @relation(fields: [planId], references: [id])
+  user User                   @relation(fields: [userId], references: [id])
+  products SubscriptionProduct[]
+
+  @@index([status])
+  @@index([userId])
+  @@map("subscription")
+}
+
+model SubscriptionPlan {
+  id           String               @id @default(uuid())
+  name         String
+  type         SubscriptionPlanType
+  basePrice    Int
+  description  String?
+  maxProducts  Int?
+  features     String[]
+  discount     Int?
+  isActive     Boolean              @default(true)
+  subscriptions Subscription[]
+
+  @@index([type])
+  @@map("subscription_plan")
+}
+
+model SubscriptionProduct {
+  id             String       @id @default(uuid())
+  quantity       Int
+  subscriptionId String
+  productId      String
+  product Product      @relation(fields: [productId], references: [id])
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId])
+  @@map("subscription_product")
+}
+
+model User {
+  id                                   String                   @id @default(uuid())
+  name                                 String
+  email                                String                   @unique
+  emailVerified                        Boolean                  @default(false)
+  image                                String?
+  firstName                            String?
+  lastName                             String?
+  phone                                String?
+  role                                 UserRole                 @default(CUSTOMER)
+  status                               UserStatus               @default(ACTIVE)
+  lastLoginAt                          DateTime?
+  createdAt                            DateTime                 @default(now())
+  updatedAt                            DateTime @updatedAt
+  referredById                         String?
+  orderTrustNote                       String?
+  orderTrustStatus                     CustomerOrderTrustStatus @default(NONE)
+  orderTrustUpdatedAt                  DateTime?
+  orderTrustUpdatedBy                  String?
+  account Account[]
+  address Address?
+  cartItems CartItem[]
+  favorites Favorite[]
+  orders Order[]
+  points PointsAccount?
+  referrals Referral?                @relation("referral_referrerIdTouser")
+  reviews Review[]
+  session Session[]
+  streak Streak?
+  subscription Subscription?
+  referredBy Referral?                @relation("user_referredByIdToreferral", fields: [referredById], references: [id])
+  badges UserBadge[]
+  userMissions UserMission[]
+  userMysteryBoxes UserMysteryBox[]
+  user_notification UserNotification[]
+  user_reward UserReward[]
+  web_push_subscription WebPushSubscription[]
+
+  @@index([status])
+  @@map("user")
+}
+
+model UserBadge {
+  id         String   @id @default(uuid())
+  unlockedAt DateTime @default(now())
+  userId     String
+  badgeId    String
+  badge Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeId])
+  @@index([userId])
+  @@map("user_badge")
+}
+
+model WebPushSubscription {
+  id          String   @id @default(uuid())
+  userId      String
+  endpoint    String   @unique
+  p256dh      String
+  auth        String
+  userAgent   String?
+  deviceLabel String?
+  isActive    Boolean  @default(true)
+  lastSeenAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isActive])
+  @@map("web_push_subscription")
+}
+
+model UserMission {
+  id          String    @id @default(uuid())
+  progress    Int       @default(0)
+  completed   Boolean   @default(false)
+  claimed     Boolean   @default(false)
+  completedAt DateTime?
+  userId      String
+  missionId   String
+  mission Mission   @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  user User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, missionId])
+  @@index([userId])
+  @@map("user_mission")
+}
+
+model UserMysteryBox {
+  id           String      @id @default(uuid())
+  receivedAt   DateTime    @default(now())
+  opened       Boolean     @default(false)
+  openedAt     DateTime?
+  rewardValue  Int?
+  expiresAt    DateTime?
+  userId       String
+  mysteryBoxId String
+  rewardType   RewardType?
+  mysteryBox MysteryBox @relation(fields: [mysteryBoxId], references: [id])
+  user User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_mystery_box")
+}
+
+model UserNotification {
+  id        String           @id @default(uuid())
+  type      NotificationType
+  title     String
+  message   String
+  icon      String?
+  read      Boolean          @default(false)
+  actionUrl String?
+  createdAt DateTime         @default(now())
+  userId    String
+  user User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([read])
+  @@index([userId])
+  @@map("user_notification")
+}
+
+model UserReward {
+  id        String           @id @default(uuid())
+  type      RewardType
+  value     Int
+  status    UserRewardStatus @default(AVAILABLE)
+  source    String
+  expiresAt DateTime?
+  usedAt    DateTime?
+  userId    String
+  orders Order[]
+  user User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([userId])
+  @@map("user_reward")
+}
+
 model Verification {
-  id         String    @id
+  id         String   @id @default(uuid())
   identifier String
   value      String
   expiresAt  DateTime
-  createdAt  DateTime?
-  updatedAt  DateTime?
-
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  @@index([identifier])
   @@map("verification")
+}
+
+enum BadgeRarity {
+  COMMON
+  RARE
+  EPIC
+  LEGENDARY
+}
+
+enum BadgeStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ContactMessageStatus {
+  NEW
+  READ
+  REPLIED
+}
+
+enum CustomerOrderTrustStatus {
+  NONE
+  VERIFIED
+  UNRELIABLE
+}
+
+enum MissionStatus {
+  ACTIVE
+  INACTIVE
+  EXPIRED
+}
+
+enum MissionType {
+  ORDER_COUNT
+  TOTAL_SPENT
+  REFERRAL_COUNT
+  STREAK_DAYS
+}
+
+enum MysteryBoxStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum NotificationType {
+  BADGE_UNLOCKED
+  MISSION_COMPLETE
+  STREAK_MILESTONE
+  MYSTERY_BOX
+  REFERRAL_SUCCESS
+  ORDER_UPDATE
+  SUBSCRIPTION_UPDATE
+  PROMO
+  GENERAL
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  IN_TRANSIT
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CARD
+  CASH
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  REFUNDED
+  FAILED
+}
+
+enum PhoneConfirmationStatus {
+  PENDING
+  CONFIRMED
+  NO_RESPONSE
+  DECLINED
+}
+
+enum PointsTransactionType {
+  EARN
+  SPEND
+  EXPIRE
+}
+
+enum ProductCategory {
+  PLATS
+  BOISSONS
+  DESSERTS
+  SNACKS
+}
+
+enum ProductStatus {
+  ACTIVE
+  DRAFT
+  OUT_OF_STOCK
+}
+
+enum PromoApplicableTo {
+  ALL
+  FIRST_ORDER
+  SPECIFIC_PRODUCTS
+  SUBSCRIPTION
+  VIP
+}
+
+enum PromoCodeStatus {
+  ACTIVE
+  EXPIRED
+  INACTIVE
+}
+
+enum PromoCodeType {
+  PERCENTAGE
+  FIXED
+  FREE_DELIVERY
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum RewardType {
+  POINTS
+  DISCOUNT_PERCENTAGE
+  DISCOUNT_FIXED
+  FREE_DELIVERY
+}
+
+enum SubscriptionPlanType {
+  MONTHLY
+  QUARTERLY
+  ANNUAL
+  CUSTOM
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAUSED
+  CANCELLED
+  EXPIRED
+}
+
+enum UserRewardStatus {
+  AVAILABLE
+  USED
+  EXPIRED
+}
+
+enum UserRole {
+  CUSTOMER
+  ADMIN
+  SUPER_ADMIN
+  ORDER_MANAGER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
 }

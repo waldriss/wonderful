@@ -22,7 +22,7 @@ export const auth = betterAuth({
   secret: config.auth.secret,
   
   // List of allowed origins for CORS
-  trustedOrigins: [config.auth.corsOrigin],
+  trustedOrigins: [config.auth.frontendUrl],
   
   emailAndPassword: {  
     enabled: true

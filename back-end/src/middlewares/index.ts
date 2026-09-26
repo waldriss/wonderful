@@ -3,22 +3,44 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import morgan from 'morgan';
+import path from 'path';
 import { rateLimit } from 'express-rate-limit';
-import logger from '../utils/logger';
-import { config } from '../config';
 import { toNodeHandler } from "better-auth/node";
-import { auth } from '../lib/auth';
 
+import { config } from '../config';
+import { auth } from '../lib/auth';
+import logger from '../utils/logger';
+import { rateLimitLogger } from './rate-limit-logger';
+
+/**
+ * Setup all middleware for the Express application
+ */
 export function setupMiddleware(app: Express): void {
-   // CORS configuration
-   app.use(cors({
-    // Use specific origin instead of wildcard for credential-based requests
-    origin:'http://localhost:3000',
+  // CORS configuration
+  app.use(cors({
+    origin: config.isProduction 
+      ? [config.auth.frontendUrl, config.auth.baseURL]
+      : true, // Allow all origins in development
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],
+    allowedHeaders: [
+      'Content-Type', 
+      'Authorization', 
+      'X-CSRF-Token',
+      'credentials',
+      'Cookie',
+      'X-Requested-With',
+      'Accept'
+    ],
+    exposedHeaders: [
+      'Content-Disposition',
+      'Content-Type',
+      'Content-Length'
+    ],
     credentials: true, // Important for auth cookies
-    maxAge: 86400, // Cache preflight requests for 24 hours (in seconds)
+    maxAge: 86400, // Cache preflight requests for 24 hours
   }));
+
+  // Better Auth handler - must be before body parsers
   app.all("/api/auth/*splat", toNodeHandler(auth));
   
   // Request body parsing middleware
@@ -28,29 +50,54 @@ export function setupMiddleware(app: Express): void {
   // Security headers middleware
   app.use(helmet());
   
- 
-  
   // Compression middleware
   app.use(compression());
   
-  // Rate limiting
-  if (config.nodeEnv === 'production') {
+  // Rate limiting - only in production or if explicitly enabled
+  if (config.features.enableRateLimit) {
     app.use(
       rateLimit({
         windowMs: 15 * 60 * 1000, // 15 minutes
-        max: 100, // Limit each IP to 100 requests per window
+        max: 1000, // Limit each IP to 1000 requests per window
         standardHeaders: true,
-        message: 'Too many requests from this IP, please try again later',
+        message: { 
+          success: false,
+          message: 'Too many requests from this IP, please try again later' 
+        },
+        skip: (req) => {
+          // Skip for health checks
+          if (req.path === '/health' || req.path === '/api/health') return true;
+          return false;
+        },
       })
     );
+    
+    // Add rate limit monitoring
+    app.use(rateLimitLogger);
   }
   
   // Request logging middleware
   app.use(
-    morgan(config.nodeEnv === 'production' ? 'combined' : 'dev', {
+    morgan(config.isProduction ? 'combined' : 'dev', {
       stream: {
-        write: (message: string) => logger.info(message.trim()), // Changed from http to info which is a standard Pino log level
+        write: (message: string) => logger.info(message.trim()),
       },
+    })
+  );
+
+  // Serve uploaded product images as static files
+  // Accessible at /storage/products/<filename>
+  // Must set Cross-Origin-Resource-Policy: cross-origin so the frontend (different port/origin)
+  // can load images — helmet sets same-origin by default which blocks cross-origin image loads.
+  app.use(
+    '/storage',
+    (_req, res, next) => {
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      next();
+    },
+    express.static(path.join(process.cwd(), 'storage'), {
+      index: false,
+      dotfiles: 'deny',
     })
   );
 }
